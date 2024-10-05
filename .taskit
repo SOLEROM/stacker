@@ -1,0 +1,5 @@
+Project 1  ; vlad | Main project description | 
+- Subtask 1.1 | First subtask description | cd ~/path/to/project1 && ./subtask1.sh
+- Subtask 1.2 | Second subtask description | cd ~/path/to/project1 && ./subtask2.sh
+Project 2 | Another project | cd ~/path/to/project2 && ./main.sh
+- Subtask 2.1 | First subtask of project 2 | cd ~/path/to/project2 && ./subtask1.sh
