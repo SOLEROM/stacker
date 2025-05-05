@@ -1,6 +1,7 @@
 #!/bin/bash
 
 function run_task_menu() {
+  local search_dir="${1:-.}"
   task_entries=()
 
   while IFS= read -r file; do
@@ -12,7 +13,7 @@ function run_task_menu() {
       label="${dir_name}/${name} : ${desc}"
       task_entries+=("${file}|||${label}")
     fi
-  done < <(find . -type f -name "*.task" | sort)
+  done < <(find "$search_dir" -type f -name "*.task" | sort)
 
   [[ ${#task_entries[@]} -eq 0 ]] && echo "❌ No valid .task files found." && return 1
 
@@ -26,7 +27,7 @@ function run_task_menu() {
       --preview-window=right:50%:wrap \
       --preview='
         label=$(echo {} | sed "s/ :.*//")
-        find . -type f -name "*.task" | while read f; do
+        find '"$search_dir"' -type f -name "*.task" | while read f; do
           dir=$(basename "$(dirname "$f")")
           main=$(grep -v "^#" "$f" | head -n1)
           name=$(echo "$main" | cut -d "|" -f1)
@@ -69,7 +70,7 @@ function run_task_menu() {
     echo "✏️ Opening editor for: $task_file"
     "${EDITOR:-vi}" "$task_file"
     echo "🔁 Relaunching task menu..."
-    run_task_menu
+    run_task_menu "$search_dir"
     return 0
   fi
 
@@ -77,7 +78,7 @@ function run_task_menu() {
     echo "📄 Viewing task file: $task_file"
     less "$task_file"
     echo "🔁 Relaunching task menu..."
-    run_task_menu
+    run_task_menu "$search_dir"
     return 0
   fi
 
@@ -125,5 +126,5 @@ function run_task_menu() {
 }
 
 # 🚀 Auto-run when sourced
-run_task_menu
+run_task_menu "$1"
 
