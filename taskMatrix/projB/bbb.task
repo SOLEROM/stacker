@@ -1,0 +1,8 @@
+BBBBB|bbb|ls
+
+this is the task bbb in projB
+more line
+after that line will come a sub task
+^bsub|bsub|ls
+
+end line
