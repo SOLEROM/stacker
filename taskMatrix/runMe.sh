@@ -18,12 +18,8 @@ function run_task_menu() {
   while IFS= read -r file; do
     dir_name=$(basename "$(dirname "$file")")
     base_name=$(basename "$file" .task)
-    first_line=$(grep -v '^#' "$file" | head -n1)
-
-    if [[ "$first_line" == *"|"* ]]; then
-      label="${dir_name}/${base_name}"
-      task_entries+=("${file}|||${label}")
-    fi
+    label="${dir_name}/${base_name}"
+    task_entries+=("${file}|||${label}")
   done < <(find "$search_dir" -type f -name "*.task" | sort)
 
   [[ ${#task_entries[@]} -eq 0 ]] && [[ "$verbose" == 1 ]] && echo "❌ No valid .task files found in: $search_dir" && return 1
@@ -32,7 +28,7 @@ function run_task_menu() {
     echo "${entry#*|||}"
   done | \
   fzf --height=60% --layout=reverse --border \
-      --prompt="🕹  Enter=Run | Tab=Sub | ^E=Edit | Space=Less | ^a=AddTask ▶ " \
+      --prompt="🕹  Enter=Run | Tab=Sub | ^E=Edit | space=Less | ^A=ls ▶ " \
       --expect=enter,tab,ctrl-e,ctrl-l,space,ctrl-a \
       --header="========================================================" \
       --preview-window=right:50%:wrap \
@@ -75,7 +71,7 @@ function run_task_menu() {
 
   [[ -z "$task_file" ]] && [[ "$verbose" == 1 ]] && echo "❌ Could not find task file." && return 1
 
-  # ✏️ Edit mode
+  # Ctrl-E → edit
   if [[ "$key" == "ctrl-e" ]]; then
     [[ "$verbose" == 1 ]] && echo "✏️ Opening editor for: $task_file"
     "${EDITOR:-vi}" "$task_file"
@@ -84,7 +80,7 @@ function run_task_menu() {
     return 0
   fi
 
-  # 📄 View mode with less
+  # Ctrl-L / Space → less view
   if [[ "$key" == "ctrl-l" || "$key" == "space" ]]; then
     [[ "$verbose" == 1 ]] && echo "📄 Viewing task file: $task_file"
     less "$task_file"
@@ -93,19 +89,29 @@ function run_task_menu() {
     return 0
   fi
 
-
+  # Ctrl-A → custom command
   if [[ "$key" == "ctrl-a" ]]; then
     [[ "$verbose" == 1 ]] && echo "🚀 Running custom command: ls /"
-    ### my edit path
-    cd "$search_dir" ; clear 
+    cd "$search_dir" ; clear
     [[ "$verbose" == 1 ]] && echo "🔁 Relaunching task menu..."
     return 0
   fi
 
-  # Main task
+  # Main line parsing
   main_line=$(grep -v '^#' "$task_file" | head -n1)
-  IFS='|' read -r main_name _ main_cmd <<< "$main_line"
 
+  if [[ "$key" == "enter" ]]; then
+    if [[ "$main_line" != *"|"* ]]; then
+      echo "⚠️ No command assigned to this task."
+      return 1
+    fi
+    IFS='|' read -r main_name _ main_cmd <<< "$main_line"
+    [[ "$verbose" == 1 ]] && echo "▶ Running task: $main_name"
+    eval "$main_cmd"
+    return 0
+  fi
+
+  # Tab → subtask select
   if [[ "$key" == "tab" ]]; then
     subtasks=()
     while IFS= read -r l; do
@@ -116,13 +122,13 @@ function run_task_menu() {
     done < "$task_file"
 
     if [[ ${#subtasks[@]} -eq 0 ]]; then
-      [[ "$verbose" == 1 ]] && echo "⚠️ No subtasks for $main_name"
+      [[ "$verbose" == 1 ]] && echo "⚠️ No subtasks for this task."
       return 1
     fi
 
     selected_sub=$(printf "%s\n" "${subtasks[@]}" | \
       fzf --height=40% --layout=reverse --border \
-          --prompt="Subtasks for $main_name > " \
+          --prompt="Subtasks > " \
           --bind "esc:abort" --no-info)
 
     [[ -z "$selected_sub" ]] && return 0
@@ -132,12 +138,6 @@ function run_task_menu() {
 
     [[ "$verbose" == 1 ]] && echo "▶ Running subtask: $sub_name"
     eval "$sub_cmd"
-    return 0
-  fi
-
-  if [[ "$key" == "enter" ]]; then
-    [[ "$verbose" == 1 ]] && echo "▶ Running task: $main_name"
-    eval "$main_cmd"
     return 0
   fi
 
