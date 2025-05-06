@@ -92,7 +92,7 @@ function run_task_menu() {
   # Ctrl-A → custom command
   if [[ "$key" == "ctrl-a" ]]; then
     [[ "$verbose" == 1 ]] && echo "🚀 Running custom command: ls /"
-    cd "$search_dir" ; clear
+    cd "$search_dir" ; clear ; ls
     [[ "$verbose" == 1 ]] && echo "🔁 Relaunching task menu..."
     return 0
   fi
