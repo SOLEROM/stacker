@@ -6,32 +6,31 @@ function run_task_menu() {
 
   while IFS= read -r file; do
     dir_name=$(basename "$(dirname "$file")")
+    base_name=$(basename "$file" .task)
     first_line=$(grep -v '^#' "$file" | head -n1)
 
     if [[ "$first_line" == *"|"* ]]; then
-      IFS='|' read -r name desc _ <<< "$first_line"
-      label="${dir_name}/${name} : ${desc}"
+      label="${dir_name}/${base_name}"
       task_entries+=("${file}|||${label}")
     fi
   done < <(find "$search_dir" -type f -name "*.task" | sort)
 
-  [[ ${#task_entries[@]} -eq 0 ]] && echo "❌ No valid .task files found." && return 1
+  [[ ${#task_entries[@]} -eq 0 ]] && echo "❌ No valid .task files found in: $search_dir" && return 1
 
   selected=$(for entry in "${task_entries[@]}"; do
     echo "${entry#*|||}"
   done | \
   fzf --height=60% --layout=reverse --border \
-      --prompt="🕹  Enter=Run | Tab=Sub | ^E=Edit | ^L=Less ▶ " \
-      --expect=enter,tab,ctrl-e,ctrl-l \
+      --prompt="🕹  Enter=Run | Tab=Sub | ^E=Edit | Space=Less ▶ " \
+      --expect=enter,tab,ctrl-e,ctrl-l,space \
       --header="========================================================" \
       --preview-window=right:50%:wrap \
       --preview='
         label=$(echo {} | sed "s/ :.*//")
         find '"$search_dir"' -type f -name "*.task" | while read f; do
           dir=$(basename "$(dirname "$f")")
-          main=$(grep -v "^#" "$f" | head -n1)
-          name=$(echo "$main" | cut -d "|" -f1)
-          if [ "$dir/$name" = "$label" ]; then
+          base=$(basename "$f" .task)
+          if [ "$dir/$base" = "$label" ]; then
             echo "─ Notes:"
             grep -v "^#" "$f" | tail -n +2 | grep -v "^\\^"
             echo ""
@@ -74,7 +73,8 @@ function run_task_menu() {
     return 0
   fi
 
-  if [[ "$key" == "ctrl-l" ]]; then
+  # 📄 View mode with less (Ctrl-L or Space)
+  if [[ "$key" == "ctrl-l" || "$key" == "space" ]]; then
     echo "📄 Viewing task file: $task_file"
     less "$task_file"
     echo "🔁 Relaunching task menu..."
@@ -82,8 +82,7 @@ function run_task_menu() {
     return 0
   fi
 
-
-  # Main task parsing
+  # Main task execution
   main_line=$(grep -v '^#' "$task_file" | head -n1)
   IFS='|' read -r main_name _ main_cmd <<< "$main_line"
 
