@@ -28,8 +28,6 @@ function run_task_menu() {
     task_entries+=("${file}|||${label}")
   done < <(find "$search_dir" -type f -name "*.task" | sort)
 
-
-
   [[ ${#task_entries[@]} -eq 0 ]] && [[ "$verbose" == 1 ]] && echo "❌ No valid .task files found in: $search_dir" && return 1
 
   selected=$(for entry in "${task_entries[@]}"; do
@@ -68,7 +66,7 @@ function run_task_menu() {
   line=$(tail -n1 <<< "$selected")
   [[ -z "$line" ]] && return 0
 
-  label_key=$(echo "$line" | sed 's/ :.*//')
+  label_key=$(echo "$line" | cut -f1)
   task_file=""
 
   for entry in "${task_entries[@]}"; do
@@ -110,10 +108,21 @@ function run_task_menu() {
 
   if [[ "$key" == "enter" ]]; then
     if [[ "$main_line" != *"|"* ]]; then
-      echo "⚠️ No command assigned to this task."
-      return 1
+      [[ "$verbose" == 1 ]] && echo "⚠️ No valid command. Opening editor..."
+      "${EDITOR:-vi}" "$task_file"
+      run_task_menu "$@"
+      return 0
     fi
+
     IFS='|' read -r main_name _ main_cmd <<< "$main_line"
+
+    if [[ -z "$main_cmd" ]]; then
+      [[ "$verbose" == 1 ]] && echo "⚠️ No command in first line. Opening editor..."
+      "${EDITOR:-vi}" "$task_file"
+      run_task_menu "$@"
+      return 0
+    fi
+
     [[ "$verbose" == 1 ]] && echo "▶ Running task: $main_name"
     eval "$main_cmd"
     return 0
