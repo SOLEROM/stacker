@@ -41,7 +41,7 @@ function run_task_menu() {
       --header="========================================================" \
       --preview-window=right:50%:wrap \
       --preview='
-        label=$(echo {} | sed "s/ :.*//")
+	label=$(echo {} | cut -f1)
         find '"$search_dir"' -type f -name "*.task" | while read f; do
           dir=$(basename "$(dirname "$f")")
           base=$(basename "$f" .task)
