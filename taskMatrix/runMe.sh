@@ -1,166 +1,109 @@
 #!/bin/bash
+# task-menu.sh – flat version, must be sourced
 
-function run_task_menu() {
-  local search_dir="."
-  local verbose=0
+(return 0 2>/dev/null) || {
+  echo "⛔  Please run with:  source $0 [<dir>] [-v]"
+  exit 0
+}
 
-  # Parse input arguments
-  for arg in "$@"; do
-    if [[ "$arg" == "-v" ]]; then
-      verbose=1
-    elif [[ -d "$arg" ]]; then
-      search_dir="$arg"
-    fi
-  done
+# Parameters
+search_dir="."
+verbose=0
+for arg in "$@"; do
+  case "$arg" in
+    -v) verbose=1 ;;
+    *)  [[ -d "$arg" ]] && search_dir="$arg" ;;
+  esac
+done
 
-  task_entries=()
+# Collect tasks
+task_entries=()
+while IFS= read -r file; do
+  rel_path=$(realpath --relative-to="$search_dir" "$file")
+  rel_path=${rel_path%.task}
+  [[ "$rel_path" == "." ]] && rel_path=$(basename "$file" .task)
 
-  while IFS= read -r file; do
-    rel_path=$(realpath --relative-to="$search_dir" "$file")
-    rel_path="${rel_path%.task}"                   # Remove .task extension
-    first_line=$(grep -v '^#' "$file" | head -n1)
-    if [[ "$first_line" == *"|"* ]]; then
-      IFS='|' read -r a b _ <<< "$first_line"
-      label=$(printf "%s\t%s : %s" "$rel_path" "$a" "$b")
-    else
-      label="${rel_path}"
-    fi
-    task_entries+=("${file}|||${label}")
-  done < <(find "$search_dir" -type f -name "*.task" | sort)
+  first_line=$(grep -v '^#' "$file" | head -n1 2>/dev/null)
+  if [[ -n "$first_line" && "$first_line" == *"|"* ]]; then
+    IFS='|' read -r name desc _ <<< "$first_line"
+    label=$(printf '%s\t%s : %s' "$rel_path" "$name" "$desc")
+  else
+    label=$rel_path
+  fi
+  task_entries+=("${file}|||${label}")
+done < <(find "$search_dir" -type f -name '*.task' | sort)
 
-  [[ ${#task_entries[@]} -eq 0 ]] && [[ "$verbose" == 1 ]] && echo "❌ No valid .task files found in: $search_dir" && return 1
+[[ ${#task_entries[@]} -eq 0 ]] && return 1
 
-  selected=$(for entry in "${task_entries[@]}"; do
-    echo "${entry#*|||}"
-  done | \
+# Select task
+selected=$(for e in "${task_entries[@]}"; do printf '%s\n' "${e#*|||}"; done | \
   fzf --height=60% --layout=reverse --border \
-      --prompt="🕹  Enter=Run | Tab=Sub | ^E=Edit | space=Less | ^A=ls ▶ " \
+      --prompt='🕹  Enter=Run | Tab=Sub | ^E=Edit | space=Less | ^A=ls ▶ ' \
       --expect=enter,tab,ctrl-e,ctrl-l,space,ctrl-a \
-      --header="========================================================" \
-      --preview-window=right:50%:wrap \
+      --header='========================================================' \
+      --preview-window='right:50%:wrap' \
       --preview='
         label=$(echo {} | cut -f1)
-        find '"$search_dir"' -type f -name "*.task" | while read f; do
+        find "'"$search_dir"'" -type f -name "*.task" | while read f; do
           rel=$(realpath --relative-to="'"$search_dir"'" "$f")
           rel=${rel%.task}
-          if [ "$rel" = "$label" ]; then
-            echo "─ Notes:"
-            grep -v "^#" "$f" | tail -n +2 | grep -v "^\\^"
-            echo ""
-            subtasks=$(grep "^\\^" "$f")
-            if [ -n "$subtasks" ]; then
-              echo "─ Subtasks:"
-              echo "$subtasks" | while IFS="|" read -r tag desc _; do
-                tag=${tag#^}
-                printf "  └─ %-10s : %s\n" "$tag" "$desc"
-              done
-            else
-              echo "─ Subtasks: None"
-            fi
-            exit
+          [[ "$rel" == "." ]] && rel=$(basename "$f" .task)
+          [[ "$rel" == "$label" ]] || continue
+          echo "─ Notes:"
+          grep -v "^#" "$f" | tail -n +2 | grep -v "^\^"
+          echo
+          subs=$(grep "^\^" "$f")
+          if [[ -n $subs ]]; then
+            echo "─ Subtasks:"
+            echo "$subs" | while IFS="|" read -r tag desc _; do
+              printf "  └─ %-10s : %s\n" "${tag#^}" "$desc"
+            done
+          else
+            echo "─ Subtasks: None"
           fi
+          exit
         done
       ')
 
-  key=$(head -n1 <<< "$selected")
-  line=$(tail -n1 <<< "$selected")
-  [[ -z "$line" ]] && return 0
+key=$(head -n1 <<< "$selected")
+line=$(tail -n1 <<< "$selected")
+[[ -z $line ]] && return 0
 
-  label_key=$(echo "$line" | cut -f1)
-  task_file=""
+# Find the selected file
+task_file=""
+for e in "${task_entries[@]}"; do
+  [[ ${e#*|||} == "$line" ]] && { task_file=${e%%|||*}; break; }
+done
+[[ -z $task_file ]] && return 1
 
-  for entry in "${task_entries[@]}"; do
-    path="${entry%%|||*}"
-    label="${entry#*|||}"
-    [[ "$label" == "$line" ]] && task_file="$path" && break
-  done
-
-  [[ -z "$task_file" ]] && [[ "$verbose" == 1 ]] && echo "❌ Could not find task file." && return 1
-
-  # Ctrl-E → edit
-  if [[ "$key" == "ctrl-e" ]]; then
-    [[ "$verbose" == 1 ]] && echo "✏️ Opening editor for: $task_file"
-    "${EDITOR:-vi}" "$task_file"
-    [[ "$verbose" == 1 ]] && echo "🔁 Relaunching task menu..."
-    run_task_menu "$@"
-    return 0
-  fi
-
-  # Ctrl-L / Space → less view
-  if [[ "$key" == "ctrl-l" || "$key" == "space" ]]; then
-    [[ "$verbose" == 1 ]] && echo "📄 Viewing task file: $task_file"
-    less "$task_file"
-    [[ "$verbose" == 1 ]] && echo "🔁 Relaunching task menu..."
-    run_task_menu "$@"
-    return 0
-  fi
-
-  # Ctrl-A → custom command
-  if [[ "$key" == "ctrl-a" ]]; then
-    [[ "$verbose" == 1 ]] && echo "🚀 Running custom command: ls /"
-    cd "$search_dir" ; clear ; ls
-    [[ "$verbose" == 1 ]] && echo "🔁 Relaunching task menu..."
-    return 0
-  fi
-
-  # Main line parsing
-  main_line=$(grep -v '^#' "$task_file" | head -n1)
-
-  if [[ "$key" == "enter" ]]; then
-    if [[ "$main_line" != *"|"* ]]; then
-      [[ "$verbose" == 1 ]] && echo "⚠️ No valid command. Opening editor..."
-      "${EDITOR:-vi}" "$task_file"
-      run_task_menu "$@"
-      return 0
-    fi
-
-    IFS='|' read -r main_name _ main_cmd <<< "$main_line"
-
-    if [[ -z "$main_cmd" ]]; then
-      [[ "$verbose" == 1 ]] && echo "⚠️ No command in first line. Opening editor..."
-      "${EDITOR:-vi}" "$task_file"
-      run_task_menu "$@"
-      return 0
-    fi
-
-    [[ "$verbose" == 1 ]] && echo "▶ Running task: $main_name"
-    eval "$main_cmd"
-    return 0
-  fi
-
-  # Tab → subtask select
-  if [[ "$key" == "tab" ]]; then
+# Handle input
+case $key in
+  ctrl-e) "${EDITOR:-vi}" "$task_file"; source "$0" "$@" ;;
+  ctrl-l|space) less "$task_file"; source "$0" "$@" ;;
+  ctrl-a) cd "$(dirname "$task_file")" && clear && ls ;;
+  tab)
     subtasks=()
     while IFS= read -r l; do
-      [[ "$l" =~ ^\^ ]] || continue
-      l="${l#^}"
-      IFS='|' read -r sname sdesc _ <<< "$l"
-      subtasks+=("${sname} : ${sdesc}")
+      [[ $l == \^* ]] || continue
+      IFS='|' read -r tag desc _ <<< "${l#^}"
+      subtasks+=( "${tag} : ${desc}" )
     done < "$task_file"
-
-    if [[ ${#subtasks[@]} -eq 0 ]]; then
-      [[ "$verbose" == 1 ]] && echo "⚠️ No subtasks for this task."
-      return 1
-    fi
-
-    selected_sub=$(printf "%s\n" "${subtasks[@]}" | \
-      fzf --height=40% --layout=reverse --border \
-          --prompt="Subtasks > " \
-          --bind "esc:abort" --no-info)
-
-    [[ -z "$selected_sub" ]] && return 0
-
-    sub_name="${selected_sub%% :*}"
-    sub_cmd=$(grep "^\\^$sub_name|" "$task_file" | cut -d'|' -f3)
-
-    [[ "$verbose" == 1 ]] && echo "▶ Running subtask: $sub_name"
+    [[ ${#subtasks[@]} -eq 0 ]] && return 1
+    chosen_sub=$(printf '%s\n' "${subtasks[@]}" | fzf --height=40% --layout=reverse --border --prompt='Subtasks > ' --bind 'esc:abort' --no-info)
+    [[ -z $chosen_sub ]] && return 0
+    sub_name=${chosen_sub%% :*}
+    sub_cmd=$(grep "^\^${sub_name}|" "$task_file" | cut -d'|' -f3)
     eval "$sub_cmd"
-    return 0
-  fi
-
-  return 0
-}
-
-# 🚀 Auto-run when sourced
-run_task_menu "$@"
+    ;;
+  enter)
+    main_line=$(grep -v '^#' "$task_file" | head -n1)
+    if [[ $main_line != *"|"* ]]; then
+      "${EDITOR:-vi}" "$task_file"
+      source "$0" "$@"
+      return
+    fi
+    IFS='|' read -r main_name _ main_cmd <<< "$main_line"
+    eval "$main_cmd"
+    ;;
+esac
 

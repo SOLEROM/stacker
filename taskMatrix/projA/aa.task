@@ -1,5 +1,5 @@
-aaa|aaa|ls
-^ bbb|bbb|ls
+aaa|run cd /tmp|cd /tmp
+^ bbb|run echo|echo sub-task-run
 
 #aaa
 line on menu

@@ -2,4 +2,6 @@
 
 top level file test
 
+the next subtask should cd to affect the running shell
+^testcd|cd to /tmp|cd /tmp
 
