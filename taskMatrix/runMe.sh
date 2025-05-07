@@ -16,7 +16,7 @@ function run_task_menu() {
   task_entries=()
 
   while IFS= read -r file; do
-    rel_path="${file#$search_dir/}"                # Strip search_dir prefix
+    rel_path=$(realpath --relative-to="$search_dir" "$file")
     rel_path="${rel_path%.task}"                   # Remove .task extension
     first_line=$(grep -v '^#' "$file" | head -n1)
     if [[ "$first_line" == *"|"* ]]; then
@@ -41,11 +41,11 @@ function run_task_menu() {
       --header="========================================================" \
       --preview-window=right:50%:wrap \
       --preview='
-	label=$(echo {} | cut -f1)
+        label=$(echo {} | cut -f1)
         find '"$search_dir"' -type f -name "*.task" | while read f; do
-          dir=$(basename "$(dirname "$f")")
-          base=$(basename "$f" .task)
-          if [ "$dir/$base" = "$label" ]; then
+          rel=$(realpath --relative-to="'"$search_dir"'" "$f")
+          rel=${rel%.task}
+          if [ "$rel" = "$label" ]; then
             echo "─ Notes:"
             grep -v "^#" "$f" | tail -n +2 | grep -v "^\\^"
             echo ""
