@@ -16,11 +16,19 @@ function run_task_menu() {
   task_entries=()
 
   while IFS= read -r file; do
-    dir_name=$(basename "$(dirname "$file")")
-    base_name=$(basename "$file" .task)
-    label="${dir_name}/${base_name}"
+    rel_path="${file#$search_dir/}"                # Strip search_dir prefix
+    rel_path="${rel_path%.task}"                   # Remove .task extension
+    first_line=$(grep -v '^#' "$file" | head -n1)
+    if [[ "$first_line" == *"|"* ]]; then
+      IFS='|' read -r a b _ <<< "$first_line"
+      label=$(printf "%s\t%s : %s" "$rel_path" "$a" "$b")
+    else
+      label="${rel_path}"
+    fi
     task_entries+=("${file}|||${label}")
   done < <(find "$search_dir" -type f -name "*.task" | sort)
+
+
 
   [[ ${#task_entries[@]} -eq 0 ]] && [[ "$verbose" == 1 ]] && echo "❌ No valid .task files found in: $search_dir" && return 1
 
