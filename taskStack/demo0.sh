@@ -6,6 +6,8 @@
   exit 0
 }
 
+SCRIPT_PATH="$(readlink -f "$0")"
+
 # Allow user to pass task file as an argument ; or use default; fixed for zsh;
 if [[ -n "$1" && "$1" != zle_* ]]; then
   TASK_FILE="$1"
@@ -46,6 +48,7 @@ eval "$command"
 # After running, if we’re now in a different directory that has a .taskit, re-run the selector
 if [[ -f ".taskit" ]]; then
   echo "📂 Found new .taskit in $(pwd), relaunching task selector..."
-  source "$BASH_SOURCE" $(pwd)/.taskit
+  #source "$BASH_SOURCE" $(pwd)/.taskit
+  source "$SCRIPT_PATH" $(pwd)/.taskit
 fi
 

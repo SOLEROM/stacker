@@ -1,0 +1,2 @@
+inner projA | AAAA | echo AAAA ; cd ../ ; return 1
+inner projB | BBBB | echo BBBB ; cd ../ ; return 1
