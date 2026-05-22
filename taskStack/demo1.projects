@@ -1,0 +1,6 @@
+# demo1.projects — multi-project task list
+# Format: /absolute/path/to/.taskit | Project Headline
+# Lines starting with # are ignored; blank lines are skipped
+
+/proj/myGits/syso/stacker/taskStack/.taskit | Stacker Dev
+/proj/myGits/syso/stacker/taskStack/.taskit | Stacker Dev
