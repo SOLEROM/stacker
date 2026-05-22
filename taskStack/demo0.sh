@@ -15,6 +15,13 @@ else
   TASK_FILE="tasks"
 fi
 
+# Optional third param sets a label in the fzf prompt
+if [[ -n "$2" ]]; then
+  FZF_PROMPT="[$2] select: "
+else
+  FZF_PROMPT="Select a task: "
+fi
+
 
 
 # Check if the file exists
@@ -26,7 +33,7 @@ fi
 # Display only main tasks (lines that do NOT start with dash or space)
 # Show: <task name> : <description>
 selected=$(awk -F '|' '/^[^ -]/ {print $1 " : " $2}' "$TASK_FILE" | \
-  fzf --height 40% --layout=reverse --prompt="Select a task: ")
+  fzf --height 40% --layout=reverse --prompt="$FZF_PROMPT")
 
 # Exit if no selection
 if [[ -z "$selected" ]]; then
